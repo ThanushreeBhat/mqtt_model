@@ -104,12 +104,81 @@ threading.Thread(target=start_mqtt, daemon=True).start()
 @app.route("/")
 def home():
     return """
-    <h1>Student Pass Prediction ML Model</h1>
-    <p>Logistic Regression model is running.</p>
-    <p>MQTT Input: student/prediction/input</p>
-    <p>MQTT Output: student/prediction/output</p>
-    <p><a href="/api/result">View latest prediction</a></p>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Student Pass Prediction</title>
+        <style>
+            body {
+                font-family: Arial;
+                background: #f1f5f9;
+                text-align: center;
+                padding: 50px;
+            }
+            .card {
+                background: white;
+                padding: 30px;
+                border-radius: 15px;
+                max-width: 450px;
+                margin: auto;
+                box-shadow: 0 4px 15px #ccc;
+            }
+            h1 { color: #2563eb; }
+            .result {
+                font-size: 24px;
+                font-weight: bold;
+                margin: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>Student Pass Prediction</h1>
+            <p>Logistic Regression + MQTT</p>
+
+            <h3>Latest Student Details</h3>
+            <p id="hours">Hours Studied: Waiting...</p>
+            <p id="attendance">Attendance: Waiting...</p>
+
+            <h3>Prediction Result</h3>
+            <div class="result" id="result">
+                Waiting for student data...
+            </div>
+            <p id="status">MQTT Model Active</p>
+        </div>
+
+        <script>
+            async function updateResult() {
+                try {
+                    const response = await fetch('/api/result');
+                    const data = await response.json();
+
+                    if (data.Result) {
+                        document.getElementById('hours').innerText =
+                            'Hours Studied: ' + data.Hours_Studied;
+
+                        document.getElementById('attendance').innerText =
+                            'Attendance: ' + data.Attendance + '%';
+
+                        document.getElementById('result').innerText =
+                            data.Result;
+
+                        document.getElementById('status').innerText =
+                            'Prediction updated successfully';
+                    }
+                } catch (error) {
+                    document.getElementById('status').innerText =
+                        'Unable to fetch prediction';
+                }
+            }
+
+            updateResult();
+            setInterval(updateResult, 2000);
+        </script>
+    </body>
+    </html>
     """
+
 
 
 @app.route("/api/result")
