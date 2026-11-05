@@ -1,3 +1,6 @@
+
 pandas
 scikit-learn
 paho-mqtt
+Flask
+gunicorn
