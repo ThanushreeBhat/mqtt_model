@@ -1,0 +1,23 @@
+{
+  "name": "esp32-mqtt-express-backend",
+  "version": "1.0.0",
+  "description": "Simple Node.js backend using Express and MQTT.js to receive ESP32 sensor data",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "mqtt",
+    "esp32",
+    "iot"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.22.3",
+    "mqtt": "^5.16.1"
+  }
+}
