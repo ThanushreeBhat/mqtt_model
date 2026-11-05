@@ -1,8 +1,4 @@
-import encodings
-import codecs
 
-print("ENCODINGS PATH:", encodings.__file__)
-print("IDNA TEST:", codecs.lookup("idna"))
 import os
 import json
 import threading
@@ -30,16 +26,23 @@ model.fit(X_train, y_train)
 
 print("ML model trained successfully!")
 
-# Store latest prediction
+# Shared prediction storage
+RESULT_FILE = "/tmp/latest_result.json"
+
 latest_result = {"message": "Waiting for student data"}
+
+result_lock = threading.Lock()
+
 
 # MQTT configuration
 BROKER = "broker.emqx.io"
 PORT = 1883
+
 INPUT_TOPIC = "student/prediction/input"
 OUTPUT_TOPIC = "student/prediction/output"
 
 
+# MQTT connection callback
 def on_connect(client, userdata, flags, reason_code, properties):
     print("MQTT connection status:", reason_code)
 
@@ -48,6 +51,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
         print("Subscribed to:", INPUT_TOPIC)
 
 
+# MQTT message callback
 def on_message(client, userdata, msg):
     global latest_result
 
@@ -64,19 +68,29 @@ def on_message(client, userdata, msg):
 
         prediction = int(model.predict(input_data)[0])
 
-        latest_result = {
+        result = {
             "Hours_Studied": hours,
             "Attendance": attendance,
             "Prediction": prediction,
             "Result": "Pass" if prediction == 1 else "Fail"
         }
 
-        print("Prediction:", latest_result)
+        # Update shared result
+        with result_lock:
+            latest_result = result
 
+            with open(RESULT_FILE, "w") as f:
+                json.dump(result, f)
+
+        print("Prediction received and saved:", result)
+
+        # Publish prediction to MQTT output topic
         client.publish(
             OUTPUT_TOPIC,
-            json.dumps(latest_result)
+            json.dumps(result)
         )
+
+        print("Published result to:", OUTPUT_TOPIC)
 
     except Exception as e:
         print("Prediction error:", e)
@@ -92,19 +106,26 @@ client.on_connect = on_connect
 client.on_message = on_message
 
 
+# Start MQTT connection
 def start_mqtt():
     try:
         client.connect(BROKER, PORT, 60)
         client.loop_start()
+
+        print("MQTT client started successfully")
+
     except Exception as e:
         print("MQTT startup error:", e)
 
 
 # Start MQTT in background
-threading.Thread(target=start_mqtt, daemon=True).start()
+threading.Thread(
+    target=start_mqtt,
+    daemon=True
+).start()
 
 
-# Public URL home page
+# Dashboard
 @app.route("/")
 def home():
     return """
@@ -112,13 +133,15 @@ def home():
     <html>
     <head>
         <title>Student Pass Prediction</title>
+
         <style>
             body {
-                font-family: Arial;
+                font-family: Arial, sans-serif;
                 background: #f1f5f9;
                 text-align: center;
                 padding: 50px;
             }
+
             .card {
                 background: white;
                 padding: 30px;
@@ -127,7 +150,11 @@ def home():
                 margin: auto;
                 box-shadow: 0 4px 15px #ccc;
             }
-            h1 { color: #2563eb; }
+
+            h1 {
+                color: #2563eb;
+            }
+
             .result {
                 font-size: 24px;
                 font-weight: bold;
@@ -135,29 +162,43 @@ def home():
             }
         </style>
     </head>
+
     <body>
+
         <div class="card">
+
             <h1>Student Pass Prediction</h1>
+
             <p>Logistic Regression + MQTT</p>
 
             <h3>Latest Student Details</h3>
+
             <p id="hours">Hours Studied: Waiting...</p>
+
             <p id="attendance">Attendance: Waiting...</p>
 
             <h3>Prediction Result</h3>
+
             <div class="result" id="result">
                 Waiting for student data...
             </div>
-            <p id="status">MQTT Model Active</p>
+
+            <p id="status">Connecting to MQTT Model...</p>
+
         </div>
 
         <script>
+
             async function updateResult() {
+
                 try {
+
                     const response = await fetch('/api/result');
+
                     const data = await response.json();
 
                     if (data.Result) {
+
                         document.getElementById('hours').innerText =
                             'Hours Studied: ' + data.Hours_Studied;
 
@@ -169,32 +210,76 @@ def home():
 
                         document.getElementById('status').innerText =
                             'Prediction updated successfully';
+
+                    } else {
+
+                        document.getElementById('status').innerText =
+                            'Waiting for MQTT data...';
+
                     }
+
                 } catch (error) {
+
                     document.getElementById('status').innerText =
                         'Unable to fetch prediction';
+
                 }
+
             }
 
             updateResult();
+
             setInterval(updateResult, 2000);
+
         </script>
+
     </body>
     </html>
     """
 
 
-
+# API to get latest prediction
 @app.route("/api/result")
 def get_result():
-    return jsonify(latest_result)
+
+    global latest_result
+
+    try:
+
+        with result_lock:
+
+            if os.path.exists(RESULT_FILE):
+
+                with open(RESULT_FILE, "r") as f:
+                    latest_result = json.load(f)
+
+            return jsonify(latest_result)
+
+    except Exception as e:
+
+        print("API error:", e)
+
+        return jsonify({
+            "message": "Unable to retrieve prediction"
+        }), 500
 
 
+# Health check
 @app.route("/health")
 def health():
-    return jsonify({"status": "running"})
+
+    return jsonify({
+        "status": "running",
+        "model": "Logistic Regression",
+        "mqtt": "configured"
+    })
 
 
 if __name__ == "__main__":
+
     port = int(os.environ.get("PORT", 3000))
-    app.run(host="0.0.0.0", port=port)
+
+    app.run(
+        host="0.0.0.0",
+        port=port
+    )
