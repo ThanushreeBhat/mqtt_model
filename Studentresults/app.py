@@ -1,4 +1,8 @@
+import encodings
+import codecs
 
+print("ENCODINGS PATH:", encodings.__file__)
+print("IDNA TEST:", codecs.lookup("idna"))
 import os
 import json
 import threading
