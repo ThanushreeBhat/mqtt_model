@@ -1,4 +1,13 @@
+import encodings
+import encodings.idna
+import codecs
 
+print("ENCODINGS PATH:", encodings.__file__, flush=True)
+
+try:
+    print("IDNA TEST:", codecs.lookup("idna"), flush=True)
+except Exception as e:
+    print("IDNA ERROR:", repr(e), flush=True)
 import os
 import json
 import threading
